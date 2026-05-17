@@ -21,6 +21,38 @@ header, main { max-width: 80ch; margin: 0 auto; padding: 0 2ch; }
 main { margin-top: var(--line-height); }
 @media (max-width: 600px) {
   header, main { padding: 0 1ch; }
+
+  .schedule-table,
+  .schedule-table tbody { display: block; }
+  .schedule-table thead { display: none; }
+
+  .schedule-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    border: none;
+    padding: 0.35em 0;
+    gap: 0 0.5em;
+  }
+  .schedule-table tr.subrow {
+    padding: 0 0 0 1.2em;
+    border: none;
+  }
+
+  .schedule-table td {
+    border: none;
+    padding: 0;
+    white-space: normal;
+    width: auto;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+  .schedule-table td:first-child { white-space: nowrap; }
+  .schedule-table td:nth-child(2) { white-space: nowrap; }
+  .schedule-table td:nth-child(3) { flex: 1 1 100%; }
+  .schedule-table tr:not(.subrow) { border-bottom: 1px solid var(--text-color); }
+
+  .schedule-table tr.subrow td { flex: 1 1 100%; font-size: 0.85rem; }
+  .schedule-table tr.subrow td:empty { display: none; }
 }
 
 .theme-bar {
@@ -81,8 +113,6 @@ main { margin-top: var(--line-height); }
 
 .schedule {
   margin: 0 0 var(--spacing-2);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 .schedule h2 {
   margin: 0 0 0;
