@@ -19,6 +19,9 @@
 
 header, main { max-width: 80ch; margin: 0 auto; padding: 0 2ch; }
 main { margin-top: var(--line-height); }
+@media (max-width: 600px) {
+  header, main { padding: 0 1ch; }
+}
 
 .theme-bar {
   display: flex;
@@ -78,6 +81,8 @@ main { margin-top: var(--line-height); }
 
 .schedule {
   margin: 0 0 var(--spacing-2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .schedule h2 {
   margin: 0 0 0;
