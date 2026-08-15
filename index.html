@@ -154,6 +154,7 @@ main { margin-top: var(--line-height); }
 .text-blue { color: var(--blue); }
 .text-gray { color: var(--text-color-alt); }
 .font-bold { font-weight: 800; }
+.status-note { margin-top: var(--spacing-1); }
 
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -245,7 +246,7 @@ function dayTable(day, items){
 </section>`;
 }
 
-let lbd={},ubd={},allDays=[],curMode='all',weekOffset=0,loadId=0;
+let lbd={},ubd={},allDays=[],curMode='all',weekOffset=0,loadId=0,loadWarnings=[];
 
 function getWeekNumber(d){
   const t=new Date(d);t.setDate(t.getDate()+3-(t.getDay()+6)%7);
@@ -278,14 +279,37 @@ function render(mode){
     if(!items.length) continue;
     out+=dayTable(day,items);
   }
-  document.getElementById('app').innerHTML=out||'<p class="text-gray">keine einträge</p>';
+  const warnings=loadWarnings.length
+    ? `<p class="status-note text-red">${loadWarnings.map(esc).join('<br>')}</p>`
+    : '';
+  document.getElementById('app').innerHTML=(out||'<p class="text-gray">keine einträge</p>')+warnings;
 }
 
 window.sw=function(mode){render(mode);};
 
+function mergeDays(){
+  allDays=[...new Set([...Object.keys(lbd),...Object.keys(ubd)])].sort((a,b)=>sortKey(a)-sortKey(b));
+}
+
+async function fetchJsonWithTimeout(url,label,timeoutMs){
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const res=await fetch(url,{signal:ctrl.signal});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }catch(err){
+    if(err.name==='AbortError') throw new Error(`${label} lädt zu lange`);
+    throw new Error(`${label}: ${err.message}`);
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
 async function load(offset,scrollToToday){
   offset=offset||0;
   const id=++loadId;
+  lbd={};ubd={};allDays=[];loadWarnings=[];
   const now=new Date();
   const dow=now.getDay();
   const off=dow===0?-6:1-dow;
@@ -296,18 +320,27 @@ async function load(offset,scrollToToday){
   document.getElementById('week-label').textContent=getWeekNumber(mon);
   const s=Math.floor(mon.getTime()/1000);
   const e=Math.floor(sun.getTime()/1000)+86400;
-  try{
-    const [lr,ur]=await Promise.all([
-      fetch(`https://api.rocketbeans.tv/v1/schedule?startDay=${s}&endDay=${e}`),
-      fetch(`https://api.rocketbeans.tv/v1/schedule/publish?from=${s}`)
-    ]);
-    const lj=await lr.json(),uj=await ur.json();
+  document.getElementById('app').innerHTML='<p class="text-gray">lade rbtv-daten...</p>';
+  document.getElementById('tabs').innerHTML='';
+
+  const liveJob=(async()=>{
+    const lj=await fetchJsonWithTimeout(`https://api.rocketbeans.tv/v1/schedule?startDay=${s}&endDay=${e}`,'livestreams',10000);
     const lives=[];
     if(lj.success&&lj.data&&lj.data[0])
       for(const d of lj.data[0].schedule)
         for(const el of d.elements)
           if(el.type==='live') lives.push(el);
     lives.sort((a,b)=>new Date(a.timeStart)-new Date(b.timeStart));
+    lbd=groupByDay(lives,'timeStart');
+    mergeDays();
+    if(id===loadId) render(curMode);
+  })().catch(err=>{
+    loadWarnings.push(err.message);
+    if(id===loadId) render(curMode);
+  });
+
+  const uploadJob=(async()=>{
+    const uj=await fetchJsonWithTimeout(`https://api.rocketbeans.tv/v1/schedule/publish?from=${s}`,'uploads',12000);
     const uploads=[];
     const ms=e*1000;
     if(uj.success)
@@ -317,17 +350,23 @@ async function load(offset,scrollToToday){
           if(u>=s*1000&&u<=ms) uploads.push(el);
         }
     uploads.sort((a,b)=>new Date(a.uploadDate||a.publishingDate)-new Date(b.uploadDate||b.publishingDate));
-    lbd=groupByDay(lives,'timeStart');
     ubd=groupByDay(uploads,'uploadDate');
-    allDays=[...new Set([...Object.keys(lbd),...Object.keys(ubd)])].sort((a,b)=>sortKey(a)-sortKey(b));
-    if(id===loadId) render('all');
+    mergeDays();
+    if(id===loadId) render(curMode);
+  })().catch(err=>{
+    loadWarnings.push(err.message);
+    if(id===loadId) render(curMode);
+  });
+
+  await Promise.allSettled([liveJob,uploadJob]);
+
+  if(id===loadId){
+    render(curMode);
     if(id===loadId&&scrollToToday){
       const todayKey=DAYS[new Date().getDay()]+'_'+new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
       const el=document.getElementById('day-'+todayKey);
       if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
     }
-  }catch(err){
-    if(id===loadId) document.getElementById('app').innerHTML=`<p class="text-red">error: ${err.message}</p>`;
   }
 }
 load(0);
