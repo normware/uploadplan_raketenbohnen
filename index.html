@@ -340,7 +340,7 @@ async function load(offset,scrollToToday){
   });
 
   const uploadJob=(async()=>{
-    const uj=await fetchJsonWithTimeout(`https://api.rocketbeans.tv/v1/schedule/publish?from=${s}`,'uploads',12000);
+    const uj=await fetchJsonWithTimeout(`https://api.rocketbeans.tv/v1/schedule/publish?from=${s}`,'uploads',30000);
     const uploads=[];
     const ms=e*1000;
     if(uj.success)
